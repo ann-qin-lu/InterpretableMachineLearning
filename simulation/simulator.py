@@ -49,7 +49,7 @@ class Simulator(object):
 
     def get_simulated_data(self, output_file = None):
 
-        if not output_file:
+        if output_file:
             with open(output_file, 'w') as f:  # Python 3: open(..., 'wb')
                 pickle.dump([self.X, self.Y], f)
 

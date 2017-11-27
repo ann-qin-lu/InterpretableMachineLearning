@@ -7,8 +7,6 @@ sys.path.append('../settings')
 import constant
 import matplotlib.pyplot as plt
 
-
-
 class AggregateLocalSL(object):
 
     def _update_centroid(self, node):
@@ -25,6 +23,7 @@ class AggregateLocalSL(object):
         '''
         x_s = self.sampling_function(centroid, self.sub_sampling_size)
         y_s = self.black_box_model(x_s)
+        #print(y_s)
         n_0 = sum(y_s==0)
         n_1 = sum(y_s==1)
 
@@ -41,6 +40,7 @@ class AggregateLocalSL(object):
 
         sub_coefs, err, min_ls = Utils.select_feature_lr_wrapper(self.k_sparse, x_s, y_s, 'bs', self.fit_intercept)
 
+
         if err > self.error_treshold:
             return [constant.LARGEERROR,]*coef_length
 
@@ -51,14 +51,14 @@ class AggregateLocalSL(object):
         else:
             coefs = np.zeros((self.n_feature,))
             coefs[min_ls] = sub_coefs
-        coefs = coefs / np.norm(coefs)
+        coefs = coefs / np.linalg.norm(coefs)
         return coefs
 
     @staticmethod
     def _similarity_between_coefs(coef1, coef2):
         if coef1[0] == constant.LARGEERROR or coef2[0] == constant.LARGEERROR:
-            return -constant.LARGEERROR
-        return -np.norm(coef1-coef2)
+            return -1*constant.LARGEERROR
+        return -1*np.linalg.norm(coef1-coef2)
 
 
     def _warm_up(self, sub_n=100):
@@ -68,7 +68,6 @@ class AggregateLocalSL(object):
             node.update_coefs(coefs)
 
     def _extract_nearest_k(self, node):
-
         neighbors = self.distance_map[node]
         res = neighbors[:min(len(neighbors), self.nearest_k)]
         return [x[0] for x in res]
@@ -134,7 +133,7 @@ class AggregateLocalSL(object):
 
         # distance map
         for node in self.distance_map:
-            self.distance_map[node].add((cluster, np.norm(cluster.get_centroid(), node.get_centroid())))
+            self.distance_map[node].add((cluster, np.nlinalg.norm(cluster.get_centroid(), node.get_centroid())))
             self.distance_map[node] = sorted(self.distance_map[node], key=lambda x: x[1])
 
         # active_pairs
@@ -180,8 +179,8 @@ class AggregateLocalSL(object):
         '''
         pass
 
-    def __init__(self, data, list_objects, sampling_function, black_box_model, k_sparse,
-                 fit_intercept = False,  k_neighbor=1, sub_sampling_size=100, error_threshold=1, final_num_clusters):
+    def __init__(self, data, sampling_function, black_box_model, k_sparse, final_num_clusters,
+                 fit_intercept = False,  k_neighbor=1, sub_sampling_size=100, error_threshold=1):
 
         '''
         :param list_objects: list of objects to be clustered, each node only contains index domain
@@ -198,31 +197,40 @@ class AggregateLocalSL(object):
         self.k_sparse = k_sparse
         self.sub_sampling_size = sub_sampling_size
         self.fit_intercept = fit_intercept
-        self.n_feature = len(list_objects.get_centroid())
+        self.n_feature = data.shape[1]
         self.data = data
         self.error_treshold = error_threshold
         self.similarity_scores = dict()
         self.distance_map = dict()
-        self.clusters = list_objects
+        self.clusters = []
+        for i in range(len(data)):
+            self.clusters.append(Node([i]))
+
         self._warm_up()
+        print("finish warm up")
         self.active_pairs = set()
         self.final_number_clusters = final_num_clusters
 
-        for nd1 in list_objects:
-            for nd2 in list_objects:
+        for nd1 in self.clusters:
+            for nd2 in self.clusters:
                 if nd1 == nd2:
                     continue
                 self.similarity_scores[(nd1, nd2)] \
                     = AggregateLocalSL._similarity_between_coefs(nd1.get_coefs(), nd2.get_coefs())
 
-        for nd1 in list_objects:
+        for nd1 in self.clusters:
             self.distance_map[nd1] = []
-            for nd2 in list_objects:
+            for nd2 in self.clusters:
+                #print(nd1.get_index())
+                #print(nd2.get_index())
                 if nd1 == nd2:
                     continue
+                #print(nd1.get_centroid())
                 self.distance_map[nd1]\
-                    .append((nd2, np.norm(nd1.get_centroid(), nd2.get_centroid())))
+                    .append((nd2, np.linalg.norm(np.array(nd1.get_centroid())-np.array(nd2.get_centroid()))))
             self.distance_map[nd1] = sorted(self.distance_map[nd1], key=lambda x: x[1])
+
+        print(self.distance_map[nd1])
 
         self._update_active_pairs()
 

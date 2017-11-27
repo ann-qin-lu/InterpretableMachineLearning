@@ -12,23 +12,25 @@ import rpy2.robjects as ro
 class Utils(object):
 
     @staticmethod
-    def sub_sampling(point, number_of_samples):
-        # the prior distribution uses exponential
-        # assume the point are scaled in
-        if not point or len(point) < 1:
-            raise Exception('the subsampled point is empty')
-        if all([e > 1 and e < 0 for e in point]):
-            raise Exception('the subsampled point is not within one and zero')
+    def sub_sampling(point, num_of_samples, l_b=-1, u_b=1, scale=0.3):
+        '''
+        :param point: one point
+        :param number_of_samples: # of sample generated
+        :param l_b:  low bound of data
+        :param u_b: upper bound of data
+        :param scale: 1/2lambda*exp(-|x-\mu|/lambda)
+        :return:
+        '''
         point_dimension = len(point)
-        samples = np.zeros((number_of_samples, len(point)))
-        for p in range(number_of_samples):
+        data = np.zeros((num_of_samples, point_dimension))
+        for i in range(num_of_samples):
             within_range = False
             while not within_range:
-                cur_sample = laplace(point, decay*np.ones((point_dimension,)) , point_dimension)
-                if all([e <= 1 and e >= 0 for e in cur_sample]):
+                cur_sample = laplace(point, scale*np.ones((point_dimension,)))
+                if all([e <= u_b and e >= l_b for e in cur_sample]):
                     within_range = True
-            samples[p] = cur_sample
-        return samples
+            data[i,:] = cur_sample
+        return data
 
     @staticmethod
     def select_feature_lr_wrapper(n_para, x, y, model_type, fit_intercept = False):
@@ -64,7 +66,7 @@ class Utils(object):
 
             if fit_intercept:
                 return np.concatenate((lr_refit.intercept_, lr_refit.coef_[0])), 1 - lr_refit.score(x_sub, y), min_ls_f
-            return lr_refit.coef_[0], 1 - lr_refit.score(x_sub, y), min_ls_f
+            return lr_refit.coef_[0], 1 - lr_refit.score(x_sub, y), list(min_ls_f)
 
         if model_type == 'vs':
 

@@ -1,3 +1,4 @@
+import numpy as np
 class Node(object):
 
     def __init__(self, index, centroid = None, coefs = None):
@@ -12,7 +13,8 @@ class Node(object):
         self.centroid = centroid
 
     def update_coefs(self, coefs):
-        self.coefs = coefs
+
+        self.coefs = np.array(coefs)
 
     def get_index(self):
         return self.index

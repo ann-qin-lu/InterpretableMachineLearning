@@ -6,6 +6,26 @@ from sklearn.linear_model import LogisticRegression
 from itertools import combinations
 import rpy2
 import matplotlib.pyplot as plt
+from aggregate_sl.utilities import Utils
+from sklearn.ensemble import RandomForestClassifier
+import sys
+import os
+import pickle
+
+def python_train_rf(X, y, model_name):
+
+    model = os.path.join("../blackbox_models", model_name)
+    if not os.path.isfile(model):
+        clf = RandomForestClassifier()
+        clf.fit(X,y)
+        pickle.dump(clf, open(model, 'wb'))
+
+def python_rf_wrapper(x, model_name):
+    model = os.path.join("../blackbox_models", model_name)
+    if not os.path.isfile(model):
+        raise ValueError('No such model named {}'.format(model_name))
+    clf = pickle.load(open(model, 'rb'))
+    return clf.predict(x)
 
 
 def plot_decision_bound(coefs, x, y):
@@ -16,6 +36,11 @@ def plot_decision_bound(coefs, x, y):
     for i in range(m):
         plt.plot(np.sort(x[:,0]), -coefs[i][0]*np.sort(x[:,0])/coefs[i][1], color=colors[i], ls='-')
     plt.show()
+
+
+def test_sub_sampling(scale):
+    point = [0, -0.5, 0.5]
+    print(Utils.sub_sampling(point, 10, -1, 1, scale=scale))
 
 
 def test_select_feature_lr_wrapper(mode):
@@ -52,10 +77,9 @@ def test_select_feature_lr_wrapper(mode):
 
     return Utils.select_feature_lr_wrapper(2, x, y, mode)
 
-coefs, err, ls = test_select_feature_lr_wrapper('vs')
-print(coefs)
-print(err)
-print(ls)
 
+
+if __name__ == "__main__":
+    test_sub_sampling(0.1)
 
 
