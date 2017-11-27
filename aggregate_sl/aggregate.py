@@ -4,7 +4,7 @@ from aggregate_sl.utilities import Utils
 from aggregate_sl.node import Node
 import sys
 sys.path.append('../settings')
-import constant
+import settings.constant as constant
 import matplotlib.pyplot as plt
 
 class AggregateLocalSL(object):
@@ -68,6 +68,7 @@ class AggregateLocalSL(object):
             node.update_coefs(coefs)
 
     def _extract_nearest_k(self, node):
+        #print(node.get_index())
         neighbors = self.distance_map[node]
         res = neighbors[:min(len(neighbors), self.nearest_k)]
         return [x[0] for x in res]
@@ -105,13 +106,16 @@ class AggregateLocalSL(object):
         self.clusters.remove(cluster)
 
         # similar pairs
-        for key_tuple in self.similarity_pairs:
+        delete_set = set()
+        for key_tuple in self.similarity_scores:
             if self._contains(key_tuple, cluster):
-                del self.similarity_scores[key_tuple]
+                delete_set.add(key_tuple)
+        for key_tuple in delete_set:
+            del self.similarity_scores[key_tuple]
         #distance map
         del self.distance_map[cluster]
-        for cluster in self.distance_map:
-            self.distance_map[cluster] = list(filter(lambda x: not self._contains(x, cluster), self.distance_map[cluster]))
+        for nd in self.distance_map:
+            self.distance_map[nd] = list(filter(lambda x: x[0] != cluster, self.distance_map[nd]))
 
         #active_pairs will be updated after adding the cluster got from merge
 
@@ -121,7 +125,7 @@ class AggregateLocalSL(object):
         :return:
         '''
         # cluster list
-        self.clusters.add(cluster)
+        self.clusters.append(cluster)
 
         # similar scores
         for node in self.clusters:
@@ -133,17 +137,24 @@ class AggregateLocalSL(object):
 
         # distance map
         for node in self.distance_map:
-            self.distance_map[node].add((cluster, np.nlinalg.norm(cluster.get_centroid(), node.get_centroid())))
+            self.distance_map[node].append((cluster, np.linalg.norm(cluster.get_centroid()-node.get_centroid())))
             self.distance_map[node] = sorted(self.distance_map[node], key=lambda x: x[1])
 
-        # active_pairs
+        self.distance_map[cluster] = []
+        for node in self.clusters:
+            if node == cluster:
+                continue
+            self.distance_map[cluster].append((node, np.linalg.norm(cluster.get_centroid()-node.get_centroid())))
+        self.distance_map[node] = sorted(self.distance_map[node], key=lambda x: x[1])
+
+    # active_pairs
         self._update_active_pairs()
 
     def _aggregate_two_nodes(self, nd1, nd2):
         merged_index = nd1.get_index()
         merged_index.extend(nd2.get_index())
         merged_node = Node(merged_index)
-        merged_node.update_centroid(np.mean(self.data[:, merged_index], axis=0))
+        self._update_centroid(merged_node)
         coefs = self._extract_coefs(merged_node.get_centroid())
         merged_node.update_coefs(coefs)
         self._remove_cluster(nd1)
@@ -157,14 +168,18 @@ class AggregateLocalSL(object):
         :return: None if all large errors, else the pair
         '''
 
-        final_s_score = float('inf')
+        final_s_score = float('-inf')
         final_pair = None
+        print(len(self.active_pairs))
         for pair in self.active_pairs:
+            #print(pair)
             if self.similarity_scores[pair] == constant.LARGEERROR:
+                print("yes")
                 continue
             s_score = self._similarity_between_coefs(pair[0].get_coefs(), pair[1].get_coefs())
             if final_s_score < s_score:
                 final_s_score = s_score
+                #print(final_s_score)
                 final_pair = pair
 
         if not final_pair:
@@ -227,10 +242,10 @@ class AggregateLocalSL(object):
                     continue
                 #print(nd1.get_centroid())
                 self.distance_map[nd1]\
-                    .append((nd2, np.linalg.norm(np.array(nd1.get_centroid())-np.array(nd2.get_centroid()))))
+                    .append((nd2, np.linalg.norm(nd1.get_centroid()-nd2.get_centroid())))
             self.distance_map[nd1] = sorted(self.distance_map[nd1], key=lambda x: x[1])
 
-        print(self.distance_map[nd1])
+        # print(self.distance_map[nd1])
 
         self._update_active_pairs()
 
@@ -254,33 +269,36 @@ class AggregateLocalSL(object):
 
         print("there are {} clusters".format(self.final_number_clusters))
         print("==============")
-        for i in range(len(self.final_number_clusters)):
+        for i in range(self.final_number_clusters):
             cluster = self.clusters[i]
-            coefs = cluster.get_coefs
-            x_s = self.data[:,cluster.get_index()]
+            coefs = cluster.get_coefs()
+            print(coefs)
+            x_s = self.data[cluster.get_index(),:]
             y_s = self.black_box_model(x_s)
             y_hat = np.zeros(y_s.shape)
             if not self.fit_intercept:
                 y_hat[np.dot(x_s, coefs)>0] = 1
             else:
                 y_hat[np.dot(x_s, coefs[1:])+coefs[0]>0]=1
-            accuracy = sum(y_hat == y_s)
+            accuracy = sum(y_hat == y_s)/float(len(y_s))
             if self.fit_intercept:
-                active_ls = np.where(abs(coefs[1:])>constant.MINIMALNONZERO)
+                active_ls = np.where(abs(coefs[1:])>constant.MINIMALNONZERO)[0]
             else:
-                active_ls = np.where(abs(coefs)>constant.MINIMALNONZERO)
+                active_ls = np.where(abs(coefs)>constant.MINIMALNONZERO)[0]
 
-            print("for cluster {}: importance feature {}".format(i, active_ls))
+            print("for cluster {}: importance feature {} and accuracy is {}".format(i, active_ls, accuracy))
 
         if not visulization:
             return
 
-        for i in range(len(self.final_number_clusters)):
+        for i in range(self.final_number_clusters):
             cluster = self.clusters[i]
-            coefs = cluster.get_coefs
-            x_s = self.data[:, cluster.get_index()]
+            coefs = cluster.get_coefs()
+            x_s = self.data[cluster.get_index(),:]
+            print(x_s.shape)
             y_s = self.black_box_model(x_s)
             x_active = x_s[:,active_ls]
+            print(x_active.shape)
             x_1 = x_active[:,0]
             x_2 = x_active[:,1]
 
@@ -292,10 +310,11 @@ class AggregateLocalSL(object):
                 beta1 = coefs[0]
                 beta2 = coefs[1]
 
-            plt.plot(x_active[:,y_s == 0], 'ro')
-            plt.plot(x_active[:,y_s == 1], 'bs')
+            plt.plot(x_1[y_s == 0,], 'ro')
+            plt.plot(x_2[y_s == 1,], 'bs')
             plt.plot(x_1, -beta0 / beta2 - beta1 / beta2 * x_1, 'k-')
             plt.pause(3)
+            plt.close()
 
 
 

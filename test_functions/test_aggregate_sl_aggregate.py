@@ -15,7 +15,7 @@ import pickle
 
 #create a toy example in simulation
 
-n_d = 800
+n_d = 200
 n_f = 5
 ls_split_features = [[0],[1, -1]]
 ls_split_values = [[-0.2],[.5, None]]
@@ -42,19 +42,19 @@ def python_rf_wrapper(x):
     return clf.predict(x)
 
 
-def test_init():
-    X,y = simulator.get_simulated_data()
-    python_train_rf(X, y, 'prf')
-    y_hat = python_rf_wrapper(X)
-    accu = sum(y_hat == y)/float(len(y))
-    print("training accurancy is {}".format(accu))
 
-    data = X
-    k_sparse = 2
-    final_num_clusters = 3
+X,y = simulator.get_simulated_data()
+python_train_rf(X, y, 'prf')
+y_hat = python_rf_wrapper(X)
+accu = sum(y_hat == y)/float(len(y))
+print("training accurancy is {}".format(accu))
 
+data = X
+k_sparse = 2
+final_num_clusters = 3
+aggregator = AggregateLocalSL(data, Utils.sub_sampling, python_rf_wrapper, k_sparse, final_num_clusters,
+    fit_intercept=False, k_neighbor=1, sub_sampling_size=100, error_threshold=1)
 
-    AggregateLocalSL(data, Utils.sub_sampling, python_rf_wrapper, k_sparse, final_num_clusters,
-        fit_intercept=False, k_neighbor=1, sub_sampling_size=100, error_threshold=1)
+aggregator.merge()
+aggregator.summary(visulization = True)
 
-test_init()

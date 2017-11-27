@@ -10,16 +10,21 @@ class Node(object):
         self.index = x
 
     def update_centroid(self, centroid):
+        if type(centroid) == list:
+            centroid = np.array(centroid)
         self.centroid = centroid
 
     def update_coefs(self, coefs):
-
-        self.coefs = np.array(coefs)
+        if type(coefs) == list:
+            coefs = np.array(coefs)
+        self.coefs = coefs
 
     def get_index(self):
         return self.index
 
     def get_centroid(self):
+        if type(self.centroid) == list:
+            self.centroid = np.array(self.centroid)
         return self.centroid
 
     def get_coefs(self):
