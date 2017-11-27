@@ -5,6 +5,9 @@ from aggregate_sl.node import Node
 import sys
 sys.path.append('../settings')
 import constant
+import matplotlib.pyplot as plt
+
+
 
 class AggregateLocalSL(object):
 
@@ -178,7 +181,7 @@ class AggregateLocalSL(object):
         pass
 
     def __init__(self, data, list_objects, sampling_function, black_box_model, k_sparse,
-                 fit_intercept = False,  k_neighbor=1, sub_sampling_size=100, error_threshold=1):
+                 fit_intercept = False,  k_neighbor=1, sub_sampling_size=100, error_threshold=1, final_num_clusters):
 
         '''
         :param list_objects: list of objects to be clustered, each node only contains index domain
@@ -203,6 +206,7 @@ class AggregateLocalSL(object):
         self.clusters = list_objects
         self._warm_up()
         self.active_pairs = set()
+        self.final_number_clusters = final_num_clusters
 
         for nd1 in list_objects:
             for nd2 in list_objects:
@@ -222,16 +226,68 @@ class AggregateLocalSL(object):
 
         self._update_active_pairs()
 
-
-
-    def merge_first_round(self):
+    def merge(self):
         '''
         version which does not handle the large error centroid
         :return:
         '''
-        while
+        while len(self.clusters)>self.final_number_clusters:
             pair = self._find_pair_to_merge()
             self._aggregate_two_nodes(pair[0], pair[1])
+
+
+    def summary(self, visulization=False):
+
+        '''
+        :param visulization: visulization only could be set to be true only when
+        active parameters are two
+        :return:
+        '''
+
+        print("there are {} clusters".format(self.final_number_clusters))
+        print("==============")
+        for i in range(len(self.final_number_clusters)):
+            cluster = self.clusters[i]
+            coefs = cluster.get_coefs
+            x_s = self.data[:,cluster.get_index()]
+            y_s = self.black_box_model(x_s)
+            y_hat = np.zeros(y_s.shape)
+            if not self.fit_intercept:
+                y_hat[np.dot(x_s, coefs)>0] = 1
+            else:
+                y_hat[np.dot(x_s, coefs[1:])+coefs[0]>0]=1
+            accuracy = sum(y_hat == y_s)
+            if self.fit_intercept:
+                active_ls = np.where(abs(coefs[1:])>constant.MINIMALNONZERO)
+            else:
+                active_ls = np.where(abs(coefs)>constant.MINIMALNONZERO)
+
+            print("for cluster {}: importance feature {}".format(i, active_ls))
+
+        if not visulization:
+            return
+
+        for i in range(len(self.final_number_clusters)):
+            cluster = self.clusters[i]
+            coefs = cluster.get_coefs
+            x_s = self.data[:, cluster.get_index()]
+            y_s = self.black_box_model(x_s)
+            x_active = x_s[:,active_ls]
+            x_1 = x_active[:,0]
+            x_2 = x_active[:,1]
+
+            beta0 = int(self.fit_intercept)
+            if self.fit_intercept:
+                beta1 = coefs[1]
+                beta2 = coefs[2]
+            else:
+                beta1 = coefs[0]
+                beta2 = coefs[1]
+
+            plt.plot(x_active[:,y_s == 0], 'ro')
+            plt.plot(x_active[:,y_s == 1], 'bs')
+            plt.plot(x_1, -beta0 / beta2 - beta1 / beta2 * x_1, 'k-')
+            plt.pause(3)
 
 
 
